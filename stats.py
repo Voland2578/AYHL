@@ -190,14 +190,13 @@ def dumpGameData(workbook, results):
     for idx, val in enumerate(game_headers):
         game_worksheet.write(0, idx, val)
 
-
     for next_game in results:
         game = next_game.game_obj;
 
         updateTeamResult(result, game.away_team, None, "games", 0, 1)
         updateTeamResult(result, game.home_team, None, "games", 0, 1)
 
-        if (len(next_game.away_goals) > len(next_game.home_goals)):
+        if len(next_game.away_goals) > len(next_game.home_goals):
             updateTeamResult(result, game.away_team, None, "wins", 0, 1)
             updateTeamResult(result, game.home_team, None, "losses", 0, 1)
         elif len(next_game.home_goals) > len(next_game.away_goals):
@@ -231,7 +230,7 @@ def dumpGameData(workbook, results):
         row = row + 1
 
     row  = 1
-    for i,( team, data) in enumerate(result.items()):
+    for i, (team, data) in enumerate(result.items()):
         (team, player) = team.split("_")
         summary_worksheet.write(row, 0, team)
         for idx,value in enumerate([ "games", "wins", "losses","ties", "sog", "goals", "assists","shots_against","goals_against","penalty_minutes" ]):
@@ -269,19 +268,18 @@ def dumpGoalieData(workbook, results):
 
 
 
-# dump scoring data
-
-
 
 base_uri = 'http://atlantichockey.org'
+def getAllLeagues():
+    query_map = {}
+    query_map['colonials_08_2019_2020.xlsx'] = '{}/scores.php?leagueid=223&leaguetypeid=2&seasonid=26'.format(base_uri)
+    return query_map
 
 if __name__ == "__main__":
-    query_map = {}
-    query_map['titans_08.xlsx'] = '{}/scores.php?leagueid=213&seasonid=25&dateid=99'.format(base_uri)
-    #query_map['titans_06.xlsx'] = '{}/scores.php?leagueid=215&seasonid=25&dateid=99'.format(base_uri)
+    query_map = getAllLeagues()
 
     for (output_file, next_team_uri) in query_map.items():
-        print ("Accessing: {}".format(next_team_uri))
+        print("Accessing: {}".format(next_team_uri))
         page = requests.get(next_team_uri)
         soup = BeautifulSoup(page.content, 'html5lib')
 
