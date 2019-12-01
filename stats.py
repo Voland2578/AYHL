@@ -15,7 +15,9 @@ Penalty = namedtuple('Penalty', 'game_id team player period penalty_time penalty
 # goalie
 Goalie = namedtuple('Goalie', 'game_id team goalie minutes_played saves shots pct')
 
-
+POWER_PLAY_GOAL = "Power Play"
+SHORT_HANDED_GOAL = "Short Handed"
+BASE_URI = 'http://atlantichockey.org'
 
 def getPlayerFromTd(td):
     link = td.find("a")
@@ -117,9 +119,9 @@ def visitOneGame(game):
     return gr
 
 def updateTeamResult(resultMap, team, player , statisticKey, startValue, addValue):
-    updateResult(resultMap, team, team, statisticKey, startValue, addValue)
+    accumulateResult(resultMap, team, team, statisticKey, startValue, addValue)
 
-def updateResult(resultMap, team, player , statisticKey, startValue, addValue):
+def accumulateResult(resultMap, team, player , statisticKey, startValue, addValue):
     if player is None or player == '-':
         return
 
@@ -138,8 +140,7 @@ def updateResult(resultMap, team, player , statisticKey, startValue, addValue):
 
 def dumpScoringData(workbook, results):
     scoreWorksheet = workbook.add_worksheet('ScoringAndAssists')
-    headers = [ "Team", "Name", "Goals", "Assists", "Penalty_Minutes"]
-    row  =  0
+    headers = [ "Team", "Name", "Goals", "Assists", "Power Play Goals", "Short Handed Goals", "Penalty_Minutes"]
 
     result = {}
     # map of results, keyed on team+player
@@ -148,29 +149,37 @@ def dumpScoringData(workbook, results):
 
     for next_game in results:
         processed_players = []
-        for game_scoring in next_game.home_goals + next_game.away_goals:
-             updateResult(result, game_scoring.team, game_scoring.player, "goal",0,1)
-             updateResult(result, game_scoring.team, game_scoring.assist1, "assist",0,1)
-             updateResult(result, game_scoring.team, game_scoring.assist2, "assist",0,1)
+        for goal_scored in next_game.home_goals + next_game.away_goals:
+             goal_type = goal_scored.goal_type
+             accumulateResult(result, goal_scored.team, goal_scored.player, "goal",0,1)
+             if goal_type == POWER_PLAY_GOAL:
+                 accumulateResult(result, goal_scored.team, goal_scored.player, "power_play_goal", 0, 1)
+             if goal_type == SHORT_HANDED_GOAL:
+                 accumulateResult(result, goal_scored.team, goal_scored.player, "short_handed_goal", 0, 1)
 
-             processed_players.append((game_scoring.team, game_scoring.player))
-             processed_players.append((game_scoring.team, game_scoring.assist1))
-             processed_players.append((game_scoring.team, game_scoring.assist2))
+             accumulateResult(result, goal_scored.team, goal_scored.assist1, "assist",0,1)
+             accumulateResult(result, goal_scored.team, goal_scored.assist2, "assist",0,1)
+
+             processed_players.append((goal_scored.team, goal_scored.player))
+             processed_players.append((goal_scored.team, goal_scored.assist1))
+             processed_players.append((goal_scored.team, goal_scored.assist2))
+
 
         for game_penalties in next_game.home_penalties + next_game.away_penalties:
-            updateResult(result, game_penalties.team, game_penalties.player, "penalty_min", 0,  int (game_penalties.penalty_minutes))
+            accumulateResult(result, game_penalties.team, game_penalties.player, "penalty_min", 0,  int (game_penalties.penalty_minutes))
             processed_players.append((game_penalties.team, game_penalties.player))
 
         # count games played for each player
-        list(map(lambda p: updateResult(result, p[0], p[1], "games",0,1), filter(lambda x: x[1] != '-', processed_players)))
+        list(map(lambda p: accumulateResult(result, p[0], p[1], "games", 0, 1), filter(lambda x: x[1] != '-', processed_players)))
 
 
     row = 1
     for i,( key, next_player) in enumerate(result.items()):
         (team, player) = key.split("_")
 
-        for idx,value in enumerate([ team, player, next_player.get('goal',0), next_player.get('assist',0 ), next_player.get('penalty_min',0 )
-                                       #,next_player.get('games',0 )
+        for idx, value in enumerate([ team, player, next_player.get('goal', 0), next_player.get('assist', 0),
+                                     next_player.get('power_play_goal', 0),
+                                     next_player.get('short_handed_goal', 0), next_player.get('penalty_min', 0)
                                    ]):
             scoreWorksheet.write(row, idx, value)
         row = row + 1
@@ -179,7 +188,9 @@ def dumpScoringData(workbook, results):
 def dumpGameData(workbook, results):
     game_worksheet = workbook.add_worksheet('Games')
     summary_worksheet = workbook.add_worksheet('Summary')
-    summary_headers = [ "Team", "Games", "Wins", "Losses", "Ties", "Shots", "Goals", "Assists", "Shots_Against", "Goals_Against","Penalty_Minutes"]
+    summary_headers = [ "Team", "Games", "Wins", "Losses", "Ties", "Shots", "Goals",
+                        "Power Play Goals", "Power Play Goals Against", "Short Handed Goals","Short Handed Goals Against",
+                        "Assists", "Shots_Against", "Goals_Against", "Penalty_Minutes"]
     game_headers = ["Date", "Home","Away","Home Goals", "Away Goals", "Link"]
     result = {}
     row = 1
@@ -209,6 +220,21 @@ def dumpGameData(workbook, results):
         updateTeamResult(result, game.away_team, None, "goals", 0, len(next_game.away_goals))
         updateTeamResult(result, game.home_team, None, "goals", 0, len(next_game.home_goals))
 
+        home_ppg_goals = [x for x in next_game.home_goals if x.goal_type=='Power Play']
+        away_ppg_goals = [x for x in next_game.away_goals if x.goal_type == 'Power Play']
+
+        updateTeamResult(result, game.away_team, None, "ppg_goals", 0, len(away_ppg_goals))
+        updateTeamResult(result, game.home_team, None, "ppg_goals", 0, len(home_ppg_goals))
+        updateTeamResult(result, game.away_team, None, "ppg_goals_against", 0, len(home_ppg_goals))
+        updateTeamResult(result, game.home_team, None, "ppg_goals_against", 0, len(away_ppg_goals))
+
+        home_short_handed_goals = [x for x in next_game.home_goals if x.goal_type == 'Short Handed']
+        away_short_handed_goals = [x for x in next_game.away_goals if x.goal_type == 'Short Handed']
+        updateTeamResult(result, game.away_team, None, "short_handed_goals", 0, len(away_short_handed_goals))
+        updateTeamResult(result, game.home_team, None, "short_handed_goals", 0, len(home_short_handed_goals))
+        updateTeamResult(result, game.away_team, None, "short_handed_goals_against", 0, len(home_short_handed_goals))
+        updateTeamResult(result, game.home_team, None, "short_handed_goals_against", 0, len(away_short_handed_goals))
+
         updateTeamResult(result, game.away_team, None, "sog", 0, sum([x.shots for x in next_game.home_goalies]))
         updateTeamResult(result, game.home_team, None, "sog", 0, sum([x.shots for x in next_game.away_goalies]))
 
@@ -233,17 +259,16 @@ def dumpGameData(workbook, results):
     for i, (team, data) in enumerate(result.items()):
         (team, player) = team.split("_")
         summary_worksheet.write(row, 0, team)
-        for idx,value in enumerate([ "games", "wins", "losses","ties", "sog", "goals", "assists","shots_against","goals_against","penalty_minutes" ]):
+        for idx,value in enumerate([ "games", "wins", "losses","ties", "sog", "goals", "ppg_goals", "ppg_goals_against", "short_handed_goals", "short_handed_goals_against","assists","shots_against","goals_against","penalty_minutes" ]):
             summary_worksheet.write(row, idx+1, data.get(value,0))
         row = row + 1
 
 # dump goalie data
 def dumpGoalieData(workbook, results):
     goaliesWorksheet = workbook.add_worksheet('Goalies')
-    headers = [ "Team", "Name", "Shots", "Saves","PCT","MinPlayed","GamesPlayed"]
+    headers = [ "Team", "Name", "GA", "SA", "SV", "SV%", "GAA", "MinPlayed", "GamesPlayed"]
     result = {}
 
-    row  =  0
     for idx, val in enumerate(headers):
         goaliesWorksheet.write(0, idx, val)
 
@@ -252,28 +277,38 @@ def dumpGoalieData(workbook, results):
         home_goalies = next_game.home_goalies
         away_goalies = next_game.away_goalies
         for goalie in home_goalies + away_goalies:
-           updateResult(result, goalie.team, goalie.goalie, "shots",0, goalie.shots)
-           updateResult(result, goalie.team, goalie.goalie, "saves", 0, goalie.saves)
-           updateResult(result, goalie.team, goalie.goalie, "minutes_played", 0, int(goalie.minutes_played))
-           updateResult(result, goalie.team, goalie.goalie, "games_played", 0, 1)
+           accumulateResult(result, goalie.team, goalie.goalie, "shots",0, goalie.shots)
+           accumulateResult(result, goalie.team, goalie.goalie, "saves", 0, goalie.saves)
+           accumulateResult(result, goalie.team, goalie.goalie, "minutes_played", 0, int(goalie.minutes_played))
+           accumulateResult(result, goalie.team, goalie.goalie, "games_played", 0, 1)
 
     for i,( key, next_player) in enumerate(result.items()):
         (team, player) = key.split("_")
 
-        for idx,value in enumerate([ team, player, next_player.get('shots',0), next_player.get('saves',0 ),
+        for idx,value in enumerate([ team, player,
+                                     next_player.get('shots', 0) - next_player.get('saves',0 ),
+                                     next_player.get('shots',0), next_player.get('saves',0 ),
                                      next_player.get('saves', 0) / next_player.get('shots',0 ),
+                                     (next_player.get('shots', 0) - next_player.get('saves', 0)) /  next_player.get('games_played',0 ),
                                      next_player.get('minutes_played',0 ), next_player.get('games_played',0 ) ]):
             goaliesWorksheet.write(row, idx, value)
         row = row + 1
 
 
 
-
-base_uri = 'http://atlantichockey.org'
 def getAllLeagues():
     query_map = {}
-    query_map['colonials_08_2019_2020.xlsx'] = '{}/scores.php?leagueid=223&leaguetypeid=2&seasonid=26'.format(base_uri)
+    query_map['colonials_08_2019_2020.xlsx'] = '{}/scores.php?leagueid=223&seasonid=26&dateid=99'.format(BASE_URI)
+    #query_map['titans_08_2018_2019.xlsx'] = '{}/full_schedule.php?leagueid=213&leaguetypeid=2&seasonid=25'.format(base_uri)
     return query_map
+
+def saveToFile(output_path):
+    print("Saving to {}".format(output_path))
+    workbook = xlsxwriter.Workbook(output_path)
+    dumpGameData(workbook, results)
+    dumpGoalieData(workbook, results)
+    dumpScoringData(workbook, results)
+    workbook.close()
 
 if __name__ == "__main__":
     query_map = getAllLeagues()
@@ -311,8 +346,6 @@ if __name__ == "__main__":
 
             results.append(visitOneGame(Game(game_id, home_team, away_team, date, game_uri)))
 
-        workbook = xlsxwriter.Workbook('D:\\{}'.format(output_file))
-        dumpGameData(workbook, results)
-        dumpGoalieData(workbook, results)
-        dumpScoringData(workbook, results)
-        workbook.close()
+        output_path = 'D:\\{}'.format(output_file)
+        saveToFile(output_path)
+
