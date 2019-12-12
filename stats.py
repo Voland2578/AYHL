@@ -299,7 +299,7 @@ def dumpGoalieData(workbook, results):
 def getAllLeagues():
     query_map = {}
     query_map['colonials_08_2019_2020.xlsx'] = '{}/scores.php?leagueid=223&seasonid=26&dateid=99'.format(BASE_URI)
-    #query_map['titans_08_2018_2019.xlsx'] = '{}/full_schedule.php?leagueid=213&leaguetypeid=2&seasonid=25'.format(base_uri)
+    #query_map['titans_08_2018_2019.xlsx'] = '{}/full_schedule.php?leagueid=213&leaguetypeid=2&seasonid=25'.format(BASE_URI)
     return query_map
 
 def saveToFile(output_path):
@@ -342,7 +342,7 @@ if __name__ == "__main__":
             date = tds[4].next.strip()
             # link uri
             link = recap_link.find("a").attrs["href"]
-            game_uri = "{}/{}".format(base_uri, link)
+            game_uri = "{}/{}".format(BASE_URI, link)
 
             results.append(visitOneGame(Game(game_id, home_team, away_team, date, game_uri)))
 
