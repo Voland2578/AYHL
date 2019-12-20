@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template,jsonify
+from flask import Blueprint, render_template,jsonify, redirect, url_for
 from . import clientapp
 
 tasks = [
@@ -22,5 +22,8 @@ def dump_json():
  
 @clientapp.route('/view')
 def client_index():
-    return render_template('hockey_stats.html')
+    resolved_url = url_for("clientapp.static", filename="hockeystats.html") 
+    print ("URL {}".format(resolved_url))
+    return redirect(resolved_url)
+    #return render_template('hockey_stats.html')
 

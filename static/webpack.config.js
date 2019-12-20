@@ -22,8 +22,9 @@ const config = {
       }
       ]
     }, 
+    // figure out how to put admin into a different bundle
     output: {
-        path: __dirname + '/public',
+        path: __dirname + '/public/clientapp',
         filename: '[name]_bundle.js',
     },
     // support tsx ( typescript with JSX tags) as well as regular ts
@@ -36,7 +37,7 @@ const config = {
     // will try both. Template is the html page where the <script> tags with the bundle will be injected.
     // Also, what in the hell is the "hash". I wonder if I need to provide it in the file names
     plugins: [
-       new HtmlWebPackPlugin( { title: 'Client Entry', template: './src/clientapp_template.html', chunks:['clientEntry'] , filename: './clientapp/hockeystats.html'   })
+       new HtmlWebPackPlugin( { title: 'Client Entry', template: './src/clientapp_template.html', chunks:['clientEntry'] , filename: 'hockeystats.html'   })
     ]
 };
 module.exports = config;
